@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import asl
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 5000
 
 def receive():
@@ -16,6 +16,10 @@ def receive():
         data, addr = sock.recvfrom(65536)
         frame_data = pickle.loads(data)
         frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
+
+        # flip the image vertically
+        frame = np.flipud(frame)
+
         asl.on_image_received(frame)
 
         if cv2.waitKey(1) & 0xFF == ord("s"):

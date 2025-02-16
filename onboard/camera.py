@@ -11,8 +11,8 @@ def run():
     # modify the SOL_SOCKET (socket-level) setting of SO_RCVBUF (receive buffer size) to 65536,
     # because we are sending images and images are big
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536) 
-    # sock.connect((HOST, PORT))
-    sock.bind((HOST, 5000))
+    sock.connect((HOST, PORT))
+    # sock.bind((HOST, 5000))
     
     vid = cv2.VideoCapture(0)
 
@@ -28,9 +28,7 @@ def run():
                 break
 
             _, encoded = cv2.imencode(".jpg", frame, (cv2.IMWRITE_JPEG_QUALITY, 80, cv2.IMWRITE_JPEG_OPTIMIZE, 1))
-
-            sock.sendto(encoded, (HOST, PORT))
-            # sock.sendto(data)
+            sock.sendto(pickle.dumps(encoded), (HOST, PORT))
     
 
 if __name__ == "__main__":

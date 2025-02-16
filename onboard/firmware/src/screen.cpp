@@ -10,6 +10,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
 #include "ILI9341_TFT_LCD_RDL.hpp"
+#include "XPT2046_TS_TFT_LCD_RDL.hpp"
 
 ILI9341_TFT myTFT;
 int8_t RST_TFT = 27;
@@ -47,28 +48,37 @@ void drawing() {
             if (!dataQueue.empty()) {
                 dataToDraw = dataQueue.front();
                 dataQueue.pop();
-            } else {
-                continue;
-            }
-        }
+			} else {
+				continue;
+			}
+		}
 
-        if (isalpha(dataToDraw)) {
-            // myTFT.setCursor(cursorPos.first, cursorPos.second);
-            myTFT.print(dataToDraw);
-			// myTFT.setCursor(cursorPos.first + 10, cursorPos.second);
-            // delayMilliSecRDL(50); 
-        } else if (dataToDraw == '\n') {
+		if (isalpha(dataToDraw)) {
+			myTFT.print(dataToDraw);
+			cursorPos.first += 25;
+			if (cursorPos.first >= 225) {
+				cursorPos.first = 0;
+				cursorPos.second += 20;
+			}
+        } 
+		else if (dataToDraw == ' ') {
+			myTFT.print("\n");
+		}
+		else if (dataToDraw == '\n') {
             myTFT.print("\n");
-            // myTFT.setCursor(cursorPos.first, cursorPos.second);
-        } else if (dataToDraw == '\b') {
+            //myTFT.setCursor(cursorPos.first, cursorPos.second);
+        } 
+		else if (dataToDraw == '\b') {
             myTFT.setCursor(cursorPos.first - 1, cursorPos.second);
             myTFT.print(" ");
             myTFT.setCursor(cursorPos.first - 1, cursorPos.second);
-        } else if (dataToDraw == 'p') {
+        } 
+		else if (dataToDraw == 'p') {
             myTFT.setTextColor(RDLC_GREY, RDLC_WHITE);
             myTFT.print(dataToDraw);
             myTFT.setTextColor(RDLC_BLACK, RDLC_WHITE);
-        } else {
+        } 
+		else {
             myTFT.setCursor(cursorPos.first, cursorPos.second);
         }
     }

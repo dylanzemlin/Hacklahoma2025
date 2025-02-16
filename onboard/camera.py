@@ -7,23 +7,22 @@ HOST = ""
 PORT = 5000
 
 def run():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((HOST, PORT))
-    sock.listen(5)
+    # sock.listen(5)
     vid = cv2.VideoCapture(0)
+
     while True:
-        client, addr = sock.accept()
-        print(f"Connection from {addr}")
-        if client:
-            vid.set(3, 1280)
-            vid.set(4, 720)
-            while vid.isOpened():
-                img, frame = vid.read()
-                if not img:
-                    print("No image.")
-                    break
-                data = pickle.dumps(frame)
-                client.sendall(struct.pack("Q", len(data) + data))
+        vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        while vid.isOpened():
+            img, frame = vid.read()
+            if not img:
+                print("No image.")
+                break
+            data = pickle.dumps(frame)
+            # sock.sendall(struct.pack("Q", len(data) + data))
+            sock.sendto(data, ("127.0.0.1", 5000))
     
 
 if __name__ == "__main__":

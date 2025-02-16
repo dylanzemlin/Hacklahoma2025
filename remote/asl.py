@@ -6,6 +6,7 @@ import tts
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
+import socket
 from model.keypoint_classifier.keypoint_classifier import KeyPointClassifier
 
 
@@ -14,6 +15,11 @@ SIGN_CONFIRM_TEXT = "1"
 SIGN_BACKSPACE_TEXT = "2"
 SIGN_SPACE_TEXT = "3"
 TIME_BETWEEN_SIGNS = 5
+MSG_ID_CHARACTER = 0
+MSG_ID_NEWLINE = 1
+MSG_ID_BACKSPACE = 2
+MSG_ID_PREDICTION = 3
+MSG_ID_FINALIZE = 4
 
 # ASL Stuff
 use_brect = True
@@ -35,13 +41,52 @@ with open("model/keypoint_classifier/keypoint_classifier_label.csv", encoding="u
 text = ""
 is_recording = False
 next_record_time = -1
+last_prediction = ""
+
+HOST = "127.0.0.1"
+PORT = 5003
+
+def send_character(character):
+    print("Sending character: " + character)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST, PORT))
+    combined_bytes = bytes(MSG_ID_CHARACTER) + character.encode()
+    sock.sendto(combined_bytes, (HOST, PORT))
+
+def send_newline():
+    print("Sending newline")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST, PORT))
+    sock.sendto(bytes(MSG_ID_NEWLINE), (HOST, PORT))
+
+def send_prediction(character):
+    global last_prediction
+    if last_prediction == character:
+        return
+    print("Sending prediction: " + character)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST, PORT))
+    combined_bytes = bytes(MSG_ID_PREDICTION) + character.encode()
+    sock.sendto(combined_bytes, (HOST, PORT))
+
+def send_finalize():
+    print("Sending finalize")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST, PORT))
+    sock.sendto(bytes(MSG_ID_FINALIZE), (HOST, PORT))
+
+def send_backspace():
+    print("Sending backspace")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST, PORT))
+    sock.sendto(bytes(MSG_ID_BACKSPACE), (HOST, PORT))
 
 def start():
     global is_recording
     is_recording = True
 
 def on_image_received(image):
-    global text, next_record_time
+    global text, next_record_time, last_prediction
 
     # Mirror the iamge
     image = cv.flip(image, 1)
@@ -83,15 +128,22 @@ def on_image_received(image):
                         # We are confirming the text
                         tts.speak(text)
                         text = ""
+                        send_finalize()
                     elif keypoint_classifier_labels[hand_sign_id] == SIGN_BACKSPACE_TEXT:
                         # We are deleting a character
                         text = text[:-1]
+                        send_backspace()
                     elif keypoint_classifier_labels[hand_sign_id] == SIGN_SPACE_TEXT:
                         # We are adding a space
                         text += " "
+                        send_newline()
                     else:
                         # We are just adding a character
                         text += keypoint_classifier_labels[hand_sign_id]
+                        send_character(keypoint_classifier_labels[hand_sign_id])
+            elif is_recording and next_record_time > time.time():
+                send_prediction(keypoint_classifier_labels[hand_sign_id])
+            last_prediction = keypoint_classifier_labels[hand_sign_id]
 
             # Drawing part
             debug_image = draw_bounding_rect(use_brect, debug_image, brect)

@@ -2,7 +2,7 @@ import cv2
 import socket
 import pickle
 
-HOST = "127.0.0.1"
+HOST = "100.70.32.6"
 PORT = 5000
 
 def run():

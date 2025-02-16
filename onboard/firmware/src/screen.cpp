@@ -12,6 +12,20 @@
 #include "ILI9341_TFT_LCD_RDL.hpp"
 #include "XPT2046_TS_TFT_LCD_RDL.hpp"
 
+const char BYTE_CONFIRMED_CHARACTER = '0';
+const char BYTE_NEWLINE = '1';
+const char BYTE_BACKSPACE = '2';
+const char BYTE_PREDICTION = '3';
+const char SCREEN_CLEAR = '4';
+const char TIME_REMAINING = '5';
+const char PEEPO_START = '6';
+const char PEEPO_FAIL = '7';
+const char PEEPO_SUCCESS = '8';
+
+struct frame {
+	char data[2];
+};
+
 ILI9341_TFT myTFT;
 int8_t RST_TFT = 27;
 int8_t DC_TFT = 22;
@@ -24,9 +38,11 @@ int HWSPI_DEVICE = 0;
 int HWSPI_CHANNEL = 0;
 int HWSPI_SPEED = 8000000;
 int HWSPI_FLAGS = 0;
+int started = 0;
+char last_time_received = '0';
 
 std::pair<uint16_t, uint16_t> cursorPos = {0, 0};
-std::queue<char> dataQueue;
+std::queue<frame> dataQueue;
 std::mutex dataMutex;
 
 void drawing();
@@ -35,14 +51,18 @@ uint8_t SetupHWSPI(void);
 void shutdown(void);
 
 void drawing() {
-    myTFT.fillScreen(RDLC_WHITE);
-    myTFT.setTextColor(RDLC_BLACK, RDLC_WHITE);
+    myTFT.fillScreen(RDLC_BLACK);
+    myTFT.setTextColor(RDLC_BLUE, RDLC_WHITE);
     myTFT.setFont(font_inconsola);
+
+	// flip the screen vertically
+	ILI9341_TFT::TFT_rotate_e rot = ILI9341_TFT::TFT_rotate_e::TFT_Degrees_180;
+	myTFT.setRotation(rot);
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        char dataToDraw;
+        struct frame dataToDraw;
         {
             std::lock_guard<std::mutex> lock(dataMutex);
             if (!dataQueue.empty()) {
@@ -53,50 +73,100 @@ void drawing() {
 			}
 		}
 
-		if (isalpha(dataToDraw)) {
-			myTFT.print(dataToDraw);
+		if (started == 0)
+		{
+			// draw a black screen with white text
+			myTFT.fillScreen(RDLC_BLUE);
+			myTFT.setTextColor(RDLC_WHITE, RDLC_BLACK);
+
+			if (dataToDraw.data[0] == PEEPO_START)
+			{
+				last_time_received = dataToDraw.data[1];
+			}
+
+			if (dataToDraw.data[0] == PEEPO_SUCCESS)
+			{
+				started = 1;
+				myTFT.fillScreen(RDLC_BLACK);
+				myTFT.setTextColor(RDLC_BLUE, RDLC_WHITE);
+				myTFT.setFont(font_inconsola);
+				myTFT.setCursor(0, 0);
+				continue;
+			}
+
+			if (dataToDraw.data[0] == PEEPO_FAIL)
+			{
+				started = 0;
+				last_time_received = '0';
+			}
+
+			// draw the time in the middle of the screen
+			myTFT.setCursor(100, 150);
+			myTFT.print(last_time_received);
+			myTFT.setCursor(0, 0);
+			continue;
+		}
+
+		if (dataToDraw.data[0] == BYTE_CONFIRMED_CHARACTER) {
+			myTFT.setTextColor(RDLC_BLACK, RDLC_WHITE);
+			myTFT.print(dataToDraw.data[1]);
 			cursorPos.first += 25;
 			if (cursorPos.first >= 225) {
 				cursorPos.first = 0;
 				cursorPos.second += 20;
 			}
+			myTFT.setCursor(cursorPos.first, cursorPos.second);
+			std::cout << "Confirmed character: " << dataToDraw.data[1] << std::endl;
         } 
-		else if (dataToDraw == ' ') {
-			myTFT.print("\n");
+		else if (dataToDraw.data[0] == BYTE_NEWLINE) {
+			cursorPos.first = 0;
+			cursorPos.second += 20;
+			myTFT.setCursor(cursorPos.first, cursorPos.second);
 		}
-		else if (dataToDraw == '\n') {
-            myTFT.print("\n");
-            //myTFT.setCursor(cursorPos.first, cursorPos.second);
+		else if (dataToDraw.data[0] == BYTE_BACKSPACE) {
+			myTFT.setCursor(cursorPos.first - 25, cursorPos.second);
         } 
-		else if (dataToDraw == '\b') {
-            myTFT.setCursor(cursorPos.first - 1, cursorPos.second);
-            myTFT.print(" ");
-            myTFT.setCursor(cursorPos.first - 1, cursorPos.second);
+		else if (dataToDraw.data[0] == BYTE_PREDICTION) {
+			myTFT.setTextColor(RDLC_RED);
+			myTFT.print(dataToDraw.data[1]);
+			myTFT.setCursor(cursorPos.first, cursorPos.second);
         } 
-		else if (dataToDraw == 'p') {
-            myTFT.setTextColor(RDLC_GREY, RDLC_WHITE);
-            myTFT.print(dataToDraw);
-            myTFT.setTextColor(RDLC_BLACK, RDLC_WHITE);
-        } 
-		else {
-            myTFT.setCursor(cursorPos.first, cursorPos.second);
-        }
+		else if (dataToDraw.data[0] == SCREEN_CLEAR) {
+			myTFT.fillScreen(RDLC_BLACK);
+			cursorPos = {0, 0};
+			myTFT.setCursor(cursorPos.first, cursorPos.second);
+			started = 0;
+		}
+		else if (dataToDraw.data[0] == TIME_REMAINING) {
+			// draw the time remaining in the bottom right corner
+			char time_remain = dataToDraw.data[1];
+
+			uint16_t last_cursor_x = cursorPos.first;
+			uint16_t last_cursor_y = cursorPos.second;
+			myTFT.setCursor(150, 150);
+			myTFT.setTextColor(RDLC_BLACK, RDLC_WHITE);
+			myTFT.print(time_remain);
+			cursorPos.first = last_cursor_x;
+			cursorPos.second = last_cursor_y;
+			myTFT.setCursor(cursorPos.first, cursorPos.second);
+		}
     }
 }
 
 void receiveData(int sock) {
-	char buffer[1];
+	char buffer[6];
 	struct sockaddr_in cliaddr;
 	socklen_t len = sizeof(cliaddr);
 	int n;
 
 	while (1) {
-		n = recvfrom(sock, (char *)buffer, 1, MSG_WAITALL, (struct sockaddr *) &cliaddr, &len);
+		n = recvfrom(sock, (char *)buffer, 6, MSG_WAITALL, (struct sockaddr *) &cliaddr, &len);
 		if (n > 0) {
-			std::cout << "Received: " << buffer[0] << std::endl;
-			buffer[n] = '\0';
 			std::lock_guard<std::mutex> lock(dataMutex);
-			dataQueue.push(buffer[0]);
+			struct frame temp;
+			temp.data[0] = buffer[0];
+			temp.data[1] = buffer[1];
+			dataQueue.push(temp);
 		}
 	}
 }

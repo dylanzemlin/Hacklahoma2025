@@ -113,14 +113,17 @@ void drawing() {
 			cursorPos.first += 25;
 			if (cursorPos.first >= 225) {
 				cursorPos.first = 0;
-				cursorPos.second += 20;
+				cursorPos.second += 35;
 			}
 			myTFT.setCursor(cursorPos.first, cursorPos.second);
 			std::cout << "Confirmed character: " << dataToDraw.data[1] << std::endl;
         } 
 		else if (dataToDraw.data[0] == BYTE_NEWLINE) {
+			// clear the current character
+			myTFT.fillRect(cursorPos.first, cursorPos.second, 25, 35, RDLC_WHITE);
+
 			cursorPos.first = 0;
-			cursorPos.second += 20;
+			cursorPos.second += 35;
 			myTFT.setCursor(cursorPos.first, cursorPos.second);
 		}
 		else if (dataToDraw.data[0] == BYTE_BACKSPACE) {

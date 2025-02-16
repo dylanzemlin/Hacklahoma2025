@@ -22,7 +22,13 @@ def run():
                 break
             data = pickle.dumps(frame)
             # sock.sendall(struct.pack("Q", len(data) + data))
-            sock.sendto(data, ("127.0.0.1", 5000))
+            # sock.sendto(data, ("127.0.0.1", 5000))
+            sock.sendto(bytes("TESTING 1, 2...", "UTF-8"), ("127.0.0.1", 5000))
+            print("SENT!")
+
+            received = sock.recv(1024)
+
+            print(received)
     
 
 if __name__ == "__main__":

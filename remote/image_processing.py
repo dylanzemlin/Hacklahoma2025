@@ -1,29 +1,18 @@
-import cv2
-import socket
-import struct
-import pickle
+import socketserver
 
-# HOST = "127.0.0.1" #FIXME
-HOST = "" #FIXME
-PORT = 5000 #FIXME
+class ImageHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        data = self.request[0]
+        print(data)
 
-def run():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # receive camera frames as UDP so faster
-    sock.bind((HOST, PORT))
+        #TODO process the data and like, AI/ML ASL that shtuff
 
-    while True:
-        data, addr = sock.recvfrom(1280 * 720 * 3) # size of image??? FIXME TODO
-
-        img = pickle.loads(data)
-
-        # cv2.imshow("Frame", img)
-
-        #TODO image recognition ASL stuff (big)
-
-        #TODO sock.send back to the addr we got with the character from the thingy
-
-        #TODO ???????
-
+        #TODO actually send the corct character
+        socket = self.request[1]
+        socket.sendto(bytes("X", "UTF-8"), self.client_address)
 
 if __name__ == "__main__":
-    run()
+    HOST, PORT = "localhost", 5000
+
+    with socketserver.UDPServer((HOST, PORT), ImageHandler) as server:
+        server.serve_forever()

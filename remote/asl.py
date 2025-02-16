@@ -15,11 +15,15 @@ SIGN_CONFIRM_TEXT = "1"
 SIGN_BACKSPACE_TEXT = "2"
 SIGN_SPACE_TEXT = "3"
 TIME_BETWEEN_SIGNS = 5
-MSG_ID_CHARACTER = 0
-MSG_ID_NEWLINE = 1
-MSG_ID_BACKSPACE = 2
-MSG_ID_PREDICTION = 3
-MSG_ID_FINALIZE = 4
+MSG_ID_CHARACTER = "0"
+MSG_ID_NEWLINE = "1"
+MSG_ID_BACKSPACE = "2"
+MSG_ID_PREDICTION = "3"
+MSG_ID_FINALIZE = "4"
+MSG_ID_TIME_REMAINING = "5"
+MSG_ID_START_UPDATE = "6"
+MSG_ID_START_FAIL = "7"
+MSG_ID_START_SUCCESS = "8"
 
 # ASL Stuff
 use_brect = True
@@ -41,48 +45,61 @@ with open("model/keypoint_classifier/keypoint_classifier_label.csv", encoding="u
 text = ""
 is_recording = False
 next_record_time = -1
+next_prediction_send = -1
 last_prediction = ""
+first_detected_thumbs_up = -1
+last_send_time_remaining = -1
+send_buffer_peepo = -1
 
-HOST_DISPLAY = "127.0.0.1"
-PORT_DISPLAY = 5003
+HOST_DISPLAY = "100.81.9.51"
+PORT_DISPLAY = 8080
 
 HOST_TTS = "127.0.0.1"
 PORT_TTS = 5004
 
 def send_character(character):
+    if character == MSG_ID_CHARACTER or character == MSG_ID_NEWLINE or character == MSG_ID_BACKSPACE or character == MSG_ID_PREDICTION or character == MSG_ID_FINALIZE or character == MSG_ID_TIME_REMAINING:
+        return
+    
     print("Sending character: " + character)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect((HOST_DISPLAY, PORT_DISPLAY))
-    combined_bytes = bytes(MSG_ID_CHARACTER) + character.encode()
+    combined_bytes = MSG_ID_CHARACTER.encode() + character.encode()
     sock.sendto(combined_bytes, (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_newline():
     print("Sending newline")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect((HOST_DISPLAY, PORT_DISPLAY))
-    sock.sendto(bytes(MSG_ID_NEWLINE), (HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(MSG_ID_NEWLINE.encode(), (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_prediction(character):
     global last_prediction
-    if last_prediction == character:
+    # if last_prediction == character:
+    #     return
+
+    if character == MSG_ID_CHARACTER or character == MSG_ID_NEWLINE or character == MSG_ID_BACKSPACE or character == MSG_ID_PREDICTION or character == MSG_ID_FINALIZE or character == MSG_ID_TIME_REMAINING:
         return
+    
     print("Sending prediction: " + character)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect((HOST_DISPLAY, PORT_DISPLAY))
-    combined_bytes = bytes(MSG_ID_PREDICTION) + character.encode()
+    combined_bytes = MSG_ID_PREDICTION.encode() + character.encode()
+    print(combined_bytes)
     sock.sendto(combined_bytes, (HOST_DISPLAY, PORT_DISPLAY))
+    last_prediction = character
 
 def send_finalize():
     print("Sending finalize")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect((HOST_DISPLAY, PORT_DISPLAY))
-    sock.sendto(bytes(MSG_ID_FINALIZE), (HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(MSG_ID_FINALIZE.encode(), (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_backspace():
     print("Sending backspace")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect((HOST_DISPLAY, PORT_DISPLAY))
-    sock.sendto(bytes(MSG_ID_BACKSPACE), (HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(MSG_ID_BACKSPACE.encode(), (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_tts(text):
     print("Sending TTS: " + text)
@@ -90,12 +107,52 @@ def send_tts(text):
     sock.connect((HOST_TTS, PORT_TTS))
     sock.sendto(text.encode(), (HOST_TTS, PORT_TTS))
 
+def send_time_remaining(time_remaining):
+    global last_send_time_remaining
+
+    if last_send_time_remaining > time.time():
+        return
+    
+    last_send_time_remaining = time.time() + 0.5
+    print("Sending time remaining: " + str(time_remaining))
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    rounded_time_remaining = round(time_remaining)
+    combined_bytes = MSG_ID_TIME_REMAINING.encode() + str(rounded_time_remaining).encode()
+    sock.sendto(combined_bytes, (HOST_DISPLAY, PORT_DISPLAY))
+
+def send_start_begin():
+    global send_buffer_peepo
+
+    if send_buffer_peepo > time.time():
+        return
+    
+    send_buffer_peepo = time.time() + 0.5
+    print("Sending start begin")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    time_thumbs_remaining = 5 - (time.time() - first_detected_thumbs_up)
+    combined_bytes = MSG_ID_START_UPDATE.encode() + str(round(time_thumbs_remaining)).encode()
+    sock.sendto(combined_bytes, (HOST_DISPLAY, PORT_DISPLAY))
+
+def send_start_fail():
+    print("Sending start fail")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(MSG_ID_START_FAIL.encode(), (HOST_DISPLAY, PORT_DISPLAY))
+
+def send_start_success():
+    print("Sending start success")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(MSG_ID_START_SUCCESS.encode(), (HOST_DISPLAY, PORT_DISPLAY))
+
 def start():
     global is_recording
     is_recording = True
 
 def on_image_received(image):
-    global text, next_record_time, last_prediction
+    global text, next_record_time, last_prediction, next_prediction_send, first_detected_thumbs_up, is_recording
 
     # Mirror the iamge
     image = cv.flip(image, 1)
@@ -138,6 +195,8 @@ def on_image_received(image):
                         # tts.speak(text)
                         send_tts(text)
                         text = ""
+                        is_recording = False
+                        first_detected_thumbs_up = -1
                         send_finalize()
                     elif keypoint_classifier_labels[hand_sign_id] == SIGN_BACKSPACE_TEXT:
                         # We are deleting a character
@@ -151,9 +210,26 @@ def on_image_received(image):
                         # We are just adding a character
                         text += keypoint_classifier_labels[hand_sign_id]
                         send_character(keypoint_classifier_labels[hand_sign_id])
-            elif is_recording and next_record_time > time.time():
+            elif is_recording and next_record_time > time.time() and next_prediction_send < time.time():
                 send_prediction(keypoint_classifier_labels[hand_sign_id])
-            last_prediction = keypoint_classifier_labels[hand_sign_id]
+                next_prediction_send = time.time() + 0.2
+            elif is_recording and next_record_time > time.time():
+                send_time_remaining(int(next_record_time - time.time()))
+            elif not is_recording and keypoint_classifier_labels[hand_sign_id] == SIGN_CONFIRM_TEXT:
+                # If we have seen the thumbs up for 5 seconds, we start recording
+                if first_detected_thumbs_up == -1:
+                    first_detected_thumbs_up = time.time()
+                    print("Thumbs up detected")
+                elif time.time() - first_detected_thumbs_up > 5:
+                    send_start_success()
+                    start()
+                    first_detected_thumbs_up = -1
+                else:
+                    print(f"Waiting for 5 seconds: {time.time() - first_detected_thumbs_up}")
+                    send_start_begin()
+            elif first_detected_thumbs_up != -1:
+                first_detected_thumbs_up = -1
+                send_start_fail()
 
             # Drawing part
             debug_image = draw_bounding_rect(use_brect, debug_image, brect)

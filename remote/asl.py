@@ -194,7 +194,7 @@ def on_image_received(image):
                         # We are confirming the text
                         # tts.speak(text)
                         send_tts(text)
-                        text = "q"
+                        text = ""
                         is_recording = False
                         first_detected_thumbs_up = -1
                         send_finalize()

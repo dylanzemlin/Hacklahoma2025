@@ -127,7 +127,19 @@ void drawing() {
 			myTFT.setCursor(cursorPos.first, cursorPos.second);
 		}
 		else if (dataToDraw.data[0] == BYTE_BACKSPACE) {
-			myTFT.setCursor(cursorPos.first - 25, cursorPos.second);
+			// clear the current character
+			myTFT.fillRect(cursorPos.first, cursorPos.second, 25, 35, RDLC_BLACK);
+
+			// now move the cursor back a character
+			cursorPos.first -= 25;
+			if (cursorPos.first < 0) {
+				cursorPos.first = 200;
+				cursorPos.second -= 35;
+			}
+
+			// clear the character that was just moved over
+			myTFT.fillRect(cursorPos.first, cursorPos.second, 25, 35, RDLC_BLACK);
+			myTFT.setCursor(cursorPos.first, cursorPos.second);
         } 
 		else if (dataToDraw.data[0] == BYTE_PREDICTION) {
 			myTFT.setTextColor(RDLC_RED);

@@ -120,7 +120,7 @@ void drawing() {
         } 
 		else if (dataToDraw.data[0] == BYTE_NEWLINE) {
 			// clear the current character
-			myTFT.fillRect(cursorPos.first, cursorPos.second, 25, 35, RDLC_WHITE);
+			myTFT.fillRect(cursorPos.first, cursorPos.second, 25, 35, RDLC_BLACK);
 
 			cursorPos.first = 0;
 			cursorPos.second += 35;

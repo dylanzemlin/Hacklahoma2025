@@ -1,34 +1,36 @@
 import cv2
 import socket
-import struct
 import pickle
 
-HOST = ""
+HOST = "127.0.0.1"
 PORT = 5000
 
 def run():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((HOST, PORT))
-    # sock.listen(5)
+
+    # modify the SOL_SOCKET (socket-level) setting of SO_RCVBUF (receive buffer size) to 65536,
+    # because we are sending images and images are big
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536) 
+    # sock.connect((HOST, PORT))
+    sock.bind((HOST, 5000))
+    
     vid = cv2.VideoCapture(0)
 
     while True:
-        vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        vid.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
         while vid.isOpened():
             img, frame = vid.read()
+
             if not img:
                 print("No image.")
                 break
-            data = pickle.dumps(frame)
-            # sock.sendall(struct.pack("Q", len(data) + data))
-            # sock.sendto(data, ("127.0.0.1", 5000))
-            sock.sendto(bytes("TESTING 1, 2...", "UTF-8"), ("127.0.0.1", 5000))
-            print("SENT!")
 
-            received = sock.recv(1024)
+            _, encoded = cv2.imencode(".jpg", frame, (cv2.IMWRITE_JPEG_QUALITY, 80, cv2.IMWRITE_JPEG_OPTIMIZE, 1))
 
-            print(received)
+            sock.sendto(encoded, (HOST, PORT))
+            # sock.sendto(data)
     
 
 if __name__ == "__main__":

@@ -1,18 +1,16 @@
-import socketserver
+import socket
+import cv2
 
-class ImageHandler(socketserver.BaseRequestHandler):
-    def handle(self):
-        data = self.request[0]
-        print(data)
+serversocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+serversocket.bind(("", 5000))
 
-        #TODO process the data and like, AI/ML ASL that shtuff
+while True:
+    x = serversocket.recv(65536)
 
-        #TODO actually send the corct character
-        socket = self.request[1]
-        socket.sendto(bytes("X", "UTF-8"), self.client_address)
+    print(x)
 
-if __name__ == "__main__":
-    HOST, PORT = "localhost", 5000
+    cv2.Mat(x)
 
-    with socketserver.UDPServer((HOST, PORT), ImageHandler) as server:
-        server.serve_forever()
+    cv2.imshow("Frame", x)
+
+    raise SystemExit

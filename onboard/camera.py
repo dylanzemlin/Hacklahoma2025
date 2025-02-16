@@ -28,7 +28,11 @@ def run():
                 break
 
             _, encoded = cv2.imencode(".jpg", frame, (cv2.IMWRITE_JPEG_QUALITY, 80, cv2.IMWRITE_JPEG_OPTIMIZE, 1))
-            sock.sendto(pickle.dumps(encoded), (HOST, PORT))
+            try:
+                sock.sendto(pickle.dumps(encoded), (HOST, PORT))
+            except Exception as e:
+                print(e)
+                break
     
 
 if __name__ == "__main__":

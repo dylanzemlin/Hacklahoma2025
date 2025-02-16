@@ -43,21 +43,24 @@ is_recording = False
 next_record_time = -1
 last_prediction = ""
 
-HOST = "127.0.0.1"
-PORT = 5003
+HOST_DISPLAY = "127.0.0.1"
+PORT_DISPLAY = 5003
+
+HOST_TTS = "127.0.0.1"
+PORT_TTS = 5004
 
 def send_character(character):
     print("Sending character: " + character)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect((HOST, PORT))
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
     combined_bytes = bytes(MSG_ID_CHARACTER) + character.encode()
-    sock.sendto(combined_bytes, (HOST, PORT))
+    sock.sendto(combined_bytes, (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_newline():
     print("Sending newline")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect((HOST, PORT))
-    sock.sendto(bytes(MSG_ID_NEWLINE), (HOST, PORT))
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(bytes(MSG_ID_NEWLINE), (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_prediction(character):
     global last_prediction
@@ -65,21 +68,27 @@ def send_prediction(character):
         return
     print("Sending prediction: " + character)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect((HOST, PORT))
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
     combined_bytes = bytes(MSG_ID_PREDICTION) + character.encode()
-    sock.sendto(combined_bytes, (HOST, PORT))
+    sock.sendto(combined_bytes, (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_finalize():
     print("Sending finalize")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect((HOST, PORT))
-    sock.sendto(bytes(MSG_ID_FINALIZE), (HOST, PORT))
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(bytes(MSG_ID_FINALIZE), (HOST_DISPLAY, PORT_DISPLAY))
 
 def send_backspace():
     print("Sending backspace")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect((HOST, PORT))
-    sock.sendto(bytes(MSG_ID_BACKSPACE), (HOST, PORT))
+    sock.connect((HOST_DISPLAY, PORT_DISPLAY))
+    sock.sendto(bytes(MSG_ID_BACKSPACE), (HOST_DISPLAY, PORT_DISPLAY))
+
+def send_tts(text):
+    print("Sending TTS: " + text)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((HOST_TTS, PORT_TTS))
+    sock.sendto(text.encode(), (HOST_TTS, PORT_TTS))
 
 def start():
     global is_recording
@@ -126,7 +135,8 @@ def on_image_received(image):
 
                     if keypoint_classifier_labels[hand_sign_id] == SIGN_CONFIRM_TEXT:
                         # We are confirming the text
-                        tts.speak(text)
+                        # tts.speak(text)
+                        send_tts(text)
                         text = ""
                         send_finalize()
                     elif keypoint_classifier_labels[hand_sign_id] == SIGN_BACKSPACE_TEXT:

@@ -13,91 +13,222 @@ from model.keypoint_classifier.keypoint_classifier import KeyPointClassifier
 
 
 datasetdir = "model/dataset/dataset 1"
-min_detection_confidence = 0.5
-min_tracking_confidence = 0.6
-
-use_brect = True
-
-# Model load #############################################################
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=2,
-    min_detection_confidence=min_detection_confidence,
-    min_tracking_confidence=min_tracking_confidence,
-)
-
-keypoint_classifier = KeyPointClassifier()
-
-# Read labels ###########################################################
-with open(
-    "model/keypoint_classifier/keypoint_classifier_label.csv", encoding="utf-8-sig"
-) as f:
-    keypoint_classifier_labels = csv.reader(f)
-    keypoint_classifier_labels = [row[0] for row in keypoint_classifier_labels]
-
-# FPS Measurement ########################################################
-cvFpsCalc = CvFpsCalc(buffer_len=10)
 
 
-def on_image_received(image):
-    fps = cvFpsCalc.get()
-    image = cv.flip(image, 1)  # Mirror display
-    debug_image = copy.deepcopy(image)
+def get_args():
+    parser = argparse.ArgumentParser()
 
-    # Detection implementation #############################################################
-    image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--width", help="cap width", type=int, default=960)
+    parser.add_argument("--height", help="cap height", type=int, default=540)
 
-    image.flags.writeable = False
-    results = hands.process(image)
-    image.flags.writeable = True
+    parser.add_argument("--use_static_image_mode", action="store_true")
+    parser.add_argument(
+        "--min_detection_confidence",
+        help="min_detection_confidence",
+        type=float,
+        default=0.7,
+    )
+    parser.add_argument(
+        "--min_tracking_confidence",
+        help="min_tracking_confidence",
+        type=int,
+        default=0.5,
+    )
 
-    if results.multi_hand_landmarks is not None:
-        for hand_landmarks, handedness in zip(
-            results.multi_hand_landmarks, results.multi_handedness
-        ):
-            # Bounding box calculation
-            brect = calc_bounding_rect(debug_image, hand_landmarks)
-            # Landmark calculation
-            landmark_list = calc_landmark_list(debug_image, hand_landmarks)
+    args = parser.parse_args()
 
-            # Conversion to relative coordinates / normalized coordinates
-            pre_processed_landmark_list = pre_process_landmark(landmark_list)
+    return args
 
-            # Write to the dataset file
-            # logging_csv(number, mode, pre_processed_landmark_list)
 
-            # Hand sign classification
-            hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
+def main():
+    # Argument parsing #################################################################
+    args = get_args()
 
-            # Finger gesture classification
-            finger_gesture_id = 0
+    cap_device = args.device
+    cap_width = args.width
+    cap_height = args.height
 
-            # Drawing part
-            debug_image = draw_bounding_rect(use_brect, debug_image, brect)
-            debug_image = draw_landmarks(debug_image, landmark_list)
-            debug_image = draw_info_text(
-                debug_image,
-                brect,
-                handedness,
-                keypoint_classifier_labels[hand_sign_id],
+    use_static_image_mode = args.use_static_image_mode
+    min_detection_confidence = args.min_detection_confidence
+    min_tracking_confidence = args.min_tracking_confidence
+
+    use_brect = True
+
+    # Camera preparation ###############################################################
+    cap = cv.VideoCapture(cap_device)
+    cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
+    cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+
+    # Model load #############################################################
+    mp_hands = mp.solutions.hands
+    hands = mp_hands.Hands(
+        static_image_mode=use_static_image_mode,
+        max_num_hands=2,
+        min_detection_confidence=min_detection_confidence,
+        min_tracking_confidence=min_tracking_confidence,
+    )
+
+    keypoint_classifier = KeyPointClassifier()
+
+    # Read labels ###########################################################
+    with open(
+        "model/keypoint_classifier/keypoint_classifier_label.csv", encoding="utf-8-sig"
+    ) as f:
+        keypoint_classifier_labels = csv.reader(f)
+        keypoint_classifier_labels = [row[0] for row in keypoint_classifier_labels]
+
+    # FPS Measurement ########################################################
+    cvFpsCalc = CvFpsCalc(buffer_len=10)
+
+    #  ########################################################################
+    mode = 0
+
+    while True:
+        fps = cvFpsCalc.get()
+
+        # Process Key (ESC: end) #################################################
+        key = cv.waitKey(10)
+        if key == 27:  # ESC
+            break
+        number, mode = select_mode(key, mode)
+
+        # Camera capture #####################################################
+        ret, image = cap.read()
+        if not ret:
+            break
+        image = cv.flip(image, 1)  # Mirror display
+        debug_image = copy.deepcopy(image)
+
+        # Detection implementation #############################################################
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+
+        image.flags.writeable = False
+        results = hands.process(image)
+        image.flags.writeable = True
+
+        if mode == 2:
+            # Loading image while processing the dataset
+            loading_img = cv.imread("./assets/om606.png", cv.IMREAD_COLOR)
+
+            cv.putText(
+                loading_img,
+                "Loading...",
+                (20, 50),
+                cv.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (255, 255, 255),
+                4,
+                cv.LINE_AA,
             )
 
-    # debug_image = draw_info(debug_image, fps, mode, number)
+            cv.imshow("Hand Gesture Recognition", loading_img)
 
-    # Screen reflection #############################################################
-    cv.imshow("Hand Gesture Recognition", debug_image)
+            key = cv.waitKey(1000)
+
+            # Looping through each folder of the dataset
+            imglabel = -1
+            for imgclass in os.listdir(datasetdir):
+                imglabel += 1
+                numofimgs = 0
+                for img in os.listdir(os.path.join(datasetdir, imgclass)):
+                    numofimgs += 1
+                    imgpath = os.path.join(datasetdir, imgclass, img)
+                    try:
+                        img = cv.imread(imgpath)
+                        debug_img = copy.deepcopy(img)
+
+                        for _ in [1, 2]:
+                            img.flags.writeable = False
+                            results = hands.process(img)
+                            img.flags.writeable = True
+
+                            if results.multi_hand_landmarks is not None:
+                                for hand_landmarks, handedness in zip(
+                                    results.multi_hand_landmarks,
+                                    results.multi_handedness,
+                                ):
+                                    # Bounding box calculation
+                                    brect = calc_bounding_rect(
+                                        debug_img, hand_landmarks
+                                    )
+                                    # Landmark calculation
+                                    landmark_list = calc_landmark_list(
+                                        debug_img, hand_landmarks
+                                    )
+
+                                    # Conversion to relative coordinates / normalized coordinates
+                                    pre_processed_landmark_list = pre_process_landmark(
+                                        landmark_list
+                                    )
+
+                                    # Write to the dataset file
+                                    logging_csv(
+                                        imglabel, mode, pre_processed_landmark_list
+                                    )
+                            img = cv.flip(img, 0)
+                    except Exception as e:
+                        print(f"Issue with image {imgpath}")
+
+                print(f"Num of image of the class {imglabel} is : {numofimgs}")
+            mode = 1
+            print("End of job!")
+            break
+        else:
+            if results.multi_hand_landmarks is not None:
+                for hand_landmarks, handedness in zip(
+                    results.multi_hand_landmarks, results.multi_handedness
+                ):
+                    # Bounding box calculation
+                    brect = calc_bounding_rect(debug_image, hand_landmarks)
+                    # Landmark calculation
+                    landmark_list = calc_landmark_list(debug_image, hand_landmarks)
+
+                    # Conversion to relative coordinates / normalized coordinates
+                    pre_processed_landmark_list = pre_process_landmark(landmark_list)
+
+                    # Write to the dataset file
+                    logging_csv(number, mode, pre_processed_landmark_list)
+
+                    # Hand sign classification
+                    hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
+
+                    # Finger gesture classification
+                    finger_gesture_id = 0
+
+                    # print(keypoint_classifier_labels)
+                    # print(hand_sign_id)
+
+                    # Drawing part
+                    debug_image = draw_bounding_rect(use_brect, debug_image, brect)
+                    debug_image = draw_landmarks(debug_image, landmark_list)
+                    debug_image = draw_info_text(
+                        debug_image,
+                        brect,
+                        handedness,
+                        keypoint_classifier_labels[hand_sign_id],
+                    )
+
+            debug_image = draw_info(debug_image, fps, mode, number)
+
+            # Screen reflection #############################################################
+            cv.imshow("Hand Gesture Recognition", debug_image)
+
+    cap.release()
+    cv.destroyAllWindows()
 
 
 def select_mode(key, mode):
     number = -1
-    if 65 <= key <= 90:  # A ~ B
+    if 65 <= key <= 90:  # A - Z (case sensitive, only capitals)
         number = key - 65
-    if key == 110:  # n (Inference Mode)
+    elif 48 <= key <= 57: # 0 - 9, also case sensitive
+        number = key - 48 + 26 # A is in spot 0, so the character '0' should be after Z, which is at index 26
+    elif key == 110:  # n (Inference Mode)
         mode = 0
-    if key == 107:  # k (Capturing Landmark From Camera Mode)
+    elif key == 107:  # k (Capturing Landmark From Camera Mode)
         mode = 1
-    if key == 100:  # d (Capturing Landmarks From Provided Dataset Mode)
+    elif key == 100:  # d (Capturing Landmarks From Provided Dataset Mode)
         mode = 2
     return number, mode
 
@@ -525,3 +656,7 @@ def draw_info(image, fps, mode, number):
                 cv.LINE_AA,
             )
     return image
+
+
+if __name__ == "__main__":
+    main()

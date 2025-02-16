@@ -18,8 +18,9 @@ def receive():
         frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
         asl.on_image_received(frame)
 
-        cv2.imshow("frame", frame)
-        
+        if cv2.waitKey(1) & 0xFF == ord("s"):
+            print("Starting processing")
+            asl.start()
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
     

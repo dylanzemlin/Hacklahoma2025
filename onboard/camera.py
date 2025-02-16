@@ -1,34 +1,27 @@
 import cv2
 import socket
 import struct
+import pickle
 
-UDP_IP = ""
-UDP_PORT = 5005
+HOST = ""
+PORT = 5000
 
 def run():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    cap = cv2.VideoCapture(0)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind((HOST, PORT))
+    sock.listen(5)
+    while True:
+        client, addr = sock.accept()
+        print(f"Connection from {addr}")
+        if client:
+            vid = cv2.VideoCapture(0)
+            while vid.isOpened():
+                img, frame = vid.read()
+                if not img:
+                    break
+                data = pickle.dumps(frame)
+                size = len(data)
+                client.sendall(struct.pack(">L", size) + data)
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-    
-    _, encoded_frame = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
-    data = encoded_frame.tobytes()
-
-    max_packet_size = 65000
-    num_packets = (len(data) // max_packet_size) + 1
-
-    for i in range(num_packets):
-        start = i * max_packet_size
-        end = start + max_packet_size
-        fragment = data[start:end]
-        packet_header = struct.pack("B", i)
-        sock.sendto(packet_header + fragment, (UDP_IP, UDP_PORT))
-
-    cap.release()
-    sock.close()
-
-if "__name__" == "__main__":
+if __name__ == "__main__":
     run()
